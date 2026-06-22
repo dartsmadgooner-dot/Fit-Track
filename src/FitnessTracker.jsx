@@ -116,16 +116,34 @@ function GymTab() {
 }
 
 // ---------- FOOD ----------
+const modeBtn = (active) => ({ flex: 1, padding: "8px", borderRadius: "8px", border: "none", cursor: "pointer", fontSize: "13px", fontWeight: 600, background: active ? "#3b82f6" : "transparent", color: active ? "#fff" : "#7a8290", transition: "background 0.15s" });
+
 function FoodTab() {
   const [log, setLog] = useState(() => { try { return JSON.parse(localStorage.getItem(FOOD_KEY)) || []; } catch { return []; } });
+  const [mode, setMode] = useState("ai");
   const [desc, setDesc] = useState("");
   const [meal, setMeal] = useState("Breakfast");
   const [estimating, setEstimating] = useState(false);
+  const [manualMacros, setManualMacros] = useState({ calories: "", protein: "", carbs: "", fat: "" });
 
   useEffect(() => { try { localStorage.setItem(FOOD_KEY, JSON.stringify(log)); } catch {} }, [log]);
 
   async function addFood() {
     if (!desc.trim()) return;
+
+    if (mode === "manual") {
+      setLog([{
+        id: Date.now(), date: today(), meal, desc: desc.trim(),
+        calories: Number(manualMacros.calories) || null,
+        protein: Number(manualMacros.protein) || null,
+        carbs: Number(manualMacros.carbs) || null,
+        fat: Number(manualMacros.fat) || null,
+      }, ...log]);
+      setDesc("");
+      setManualMacros({ calories: "", protein: "", carbs: "", fat: "" });
+      return;
+    }
+
     setEstimating(true);
     let macros = { calories: null, protein: null, carbs: null, fat: null };
     const prompt = `Estimate nutrition for: "${desc}". Respond ONLY with JSON, no markdown, no preamble: {"calories":number,"protein":number,"carbs":number,"fat":number}. Grams for macros.`;
@@ -147,6 +165,13 @@ function FoodTab() {
   const grouped = log.reduce((acc, f) => { (acc[f.date] = acc[f.date] || []).push(f); return acc; }, {});
   const Stat = ({ v, l, c }) => (<div style={{ textAlign: "center", flex: 1 }}><div style={{ fontSize: "20px", fontWeight: 800, color: c }}>{Math.round(v)}</div><div style={{ fontSize: "11px", color: "#7a8290", textTransform: "uppercase", letterSpacing: "0.5px" }}>{l}</div></div>);
 
+  const manualFields = [
+    { key: "calories", lbl: "Calories (kcal)", color: "#f59e0b" },
+    { key: "protein",  lbl: "Protein (g)",     color: "#10b981" },
+    { key: "carbs",    lbl: "Carbs (g)",        color: "#3b82f6" },
+    { key: "fat",      lbl: "Fat (g)",          color: "#ec4899" },
+  ];
+
   return (
     <>
       <div style={card}>
@@ -161,12 +186,30 @@ function FoodTab() {
 
       <div style={card}>
         <label style={label}>Log Food</label>
+
+        <div style={{ display: "flex", gap: "4px", background: "#0d0f14", borderRadius: "10px", padding: "4px", marginBottom: "14px" }}>
+          <button onClick={() => setMode("ai")} style={modeBtn(mode === "ai")}>🤖 AI Estimate</button>
+          <button onClick={() => setMode("manual")} style={modeBtn(mode === "manual")}>✏️ Enter Manually</button>
+        </div>
+
         <select value={meal} onChange={e => setMeal(e.target.value)} style={selectStyle}>
           {["Breakfast", "Lunch", "Dinner", "Snack"].map(m => <option key={m}>{m}</option>)}
         </select>
         <textarea placeholder="e.g. 2 scrambled eggs, toast and a banana" value={desc} onChange={e => setDesc(e.target.value)} style={textareaStyle} />
+
+        {mode === "manual" && (
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginTop: "12px" }}>
+            {manualFields.map(({ key, lbl, color }) => (
+              <div key={key}>
+                <label style={{ ...label, color, marginBottom: "4px" }}>{lbl}</label>
+                <input type="number" min="0" placeholder="0" value={manualMacros[key]} onChange={e => setManualMacros(m => ({ ...m, [key]: e.target.value }))} style={{ ...selectStyle, boxSizing: "border-box" }} />
+              </div>
+            ))}
+          </div>
+        )}
+
         <button onClick={addFood} disabled={!desc.trim() || estimating} style={{ marginTop: "12px", width: "100%", padding: "12px", borderRadius: "12px", border: "none", fontSize: "15px", fontWeight: 700, cursor: "pointer", background: (!desc.trim() || estimating) ? "#2c3340" : "#10b981", color: "#fff", opacity: (!desc.trim() || estimating) ? 0.6 : 1 }}>
-          {estimating ? "⏳ Estimating macros…" : "🍽️ Add & Estimate Macros"}
+          {mode === "ai" ? (estimating ? "⏳ Estimating macros…" : "🍽️ Add & Estimate Macros") : "🍽️ Add Food"}
         </button>
       </div>
 
